@@ -1,0 +1,10 @@
+numpy
+pandas
+pyspark
+confluent-kafka
+sentence-transformers
+qdrant-client
+fastapi
+uvicorn[standard]
+pytest
+jupyter
