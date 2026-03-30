@@ -8,10 +8,10 @@ env/
 .venv/
 venv/
 
-data/bronze/
-data/silver/
-data/raw/*.csv
-data/raw/*.json
+# Data directories - all generated parquet/csv files
+data/
+*.parquet
+*.parquet.crc
 
 .idea/
 .vscode/

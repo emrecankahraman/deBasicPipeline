@@ -1,10 +1,16 @@
-numpy
-pandas
-pyspark
-confluent-kafka
-sentence-transformers
-qdrant-client
-fastapi
-uvicorn[standard]
-pytest
-jupyter
+pyspark==3.5.1
+kafka-python==2.0.2
+pyspark[sql]==3.5.1
+
+# Embedding & Vector DB
+sentence-transformers==3.0.1
+qdrant-client==1.7.0
+
+# API
+fastapi==0.104.1
+uvicorn==0.24.0
+pydantic==2.5.0
+
+# Data processing
+pandas==2.1.3
+numpy==1.24.3
