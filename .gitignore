@@ -8,10 +8,10 @@ env/
 .venv/
 venv/
 
-# Data directories - all generated parquet/csv files
+# Data folders (large, generated)
 data/
-*.parquet
-*.parquet.crc
+embedding/
+backups/
 
 .idea/
 .vscode/
