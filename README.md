@@ -1,46 +1,28 @@
-AI-Ready Review Search Pipeline
-================================
+# AI-Ready Review Pipeline
 
-Bu proje, ürün yorumlarını uçtan uca işleyip semantic search için hazır hale getiren bir veri/ML pipeline’ıdır.
+This project processes 500k+ Amazon reviews using a PySpark medallion pipeline (`raw -> bronze -> silver -> gold`) and produces two outputs:
+- Power BI-ready analytics tables
+- Semantic search on Qdrant
 
-Yüksek seviye akış:
 
-- Dataset (JSON/CSV) → Kafka Producer
-- Kafka Topic (`reviews`) → Spark Structured Streaming
-- Bronze katmanı (ham stream çıktısı)
-- Silver katmanı (temizlenmiş, analiz/ML için hazır veri)
-- Embedding pipeline (sentence-transformers)
-- Vector DB (Qdrant)
-- Basit semantic search (CLI / ileride FastAPI)
+### 1) Analytics
+`raw -> bronze -> silver -> gold/analytics`
 
-### Klasör yapısı (özet)
+Power BI-ready output tables:
+- `data/gold/analytics/product_summary`
+- `data/gold/analytics/monthly_review_summary`
+- `data/gold/analytics/rating_distribution`
 
-- `data/`
-  - `raw/` – başlangıç dataset
-  - `bronze/` – ham stream çıktısı
-  - `silver/` – temizlenmiş veri
-  - `sample_queries/` – test sorguları
-- `producer/` – Kafka producer script’leri
-- `streaming/` – Spark streaming job’ları ve temizlik fonksiyonları
-- `embeddings/` – embedding modeli ve batch embedding script’leri
-- `vectordb/` – Qdrant koleksiyon ve search yardımcıları
-- `api/` – (ileride) FastAPI semantic search servisi
-- `notebooks/` – veri keşfi, embedding ve arama denemeleri
-- `configs/` – Kafka, Spark ve Qdrant ayarları
-- `tests/` – temizlik, embedding ve search testleri
-- `docs/` – mimari açıklamalar, pipeline akışı, ekran görüntüleri
+### 2) Search
+`gold/reviews -> embeddings -> Qdrant -> search API`
 
-### MVP hedefi (V1)
+Search components:
+- `scripts/gold_layer.py` (builds `gold/reviews`)
+- `embedding/embedding_full.py` (generates embeddings)
+- `vector/load_full_to_qdrant.py` (loads vectors into Qdrant)
+- `api/search_api.py` (`/health`, `/search`)
 
-- Hazır dataset’ten yorumları Kafka’ya gönderen bir producer
-- Spark Structured Streaming ile Bronze/Silver katmanlarının yazılması
-- Silver’daki `review_text` için embedding üretimi
-- Embedding’lerin Qdrant’a yazılması
-- Komut satırından çağrılabilen basit bir semantic search script’i
 
-İlerleyen aşamalarda:
 
-- FastAPI tabanlı HTTP search API
-- Docker Compose ile Kafka + Qdrant + API orkestrasyonu
-- Ek testler ve dokümantasyon
-
+No additional database is required for Power BI in the MVP.  
+Gold parquet outputs can be consumed directly.
