@@ -89,13 +89,13 @@ def write_bronze_batch(bronze_df, output_path="data/bronze"):
 
 def main():
     """Main - Bronze layer batch job"""
-    print("🟠 BRONZE LAYER başlıyor...")
+    print("BRONZE LAYER başlıyor...")
     
     spark = create_spark_session("BronzeLayer")
     
     # CSV'den oku
     csv_df = read_csv_data(spark)
-    print(f"\n📊 CSV'den {csv_df.count()} satır okundu")
+    print(f"\n CSV'den {csv_df.count()} satır okundu")
     
     # Bronze işleme
     bronze_df = process_bronze_layer(csv_df)
@@ -104,10 +104,10 @@ def main():
     print("\n=== BRONZE SCHEMA ===")
     bronze_df.printSchema()
     
-    print(f"\n✅ {bronze_df.count()} satır bronze katmanına yazılıyor...")
+    print(f"\n {bronze_df.count()} satır bronze katmanına yazılıyor...")
     write_bronze_batch(bronze_df)
     
-    print("✅ Bronze layer tamamlandı!")
+    print("Bronze layer tamamlandı!")
     spark.stop()
 
 

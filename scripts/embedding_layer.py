@@ -1,5 +1,5 @@
 """
-📊 EMBEDDING LAYER
+EMBEDDING LAYER
 Converts review_text to vector embeddings using sentence-transformers
 Outputs to data/embeddings/ in Parquet format
 """
@@ -34,12 +34,10 @@ def create_spark_session():
 def load_reviews():
     """Load reviews from gold layer"""
     spark = SparkSession.getActiveSession()
-    print(f"📖 Loading reviews from {GOLD_REVIEWS_PATH}...")
+    print(f" Loading reviews from {GOLD_REVIEWS_PATH}...")
     
     reviews_df = spark.read.parquet(GOLD_REVIEWS_PATH)
-    print(f"✅ Loaded {reviews_df.count()} reviews")
-    print(f"📋 Columns: {reviews_df.columns}")
-    
+
     return reviews_df
 
 def create_embedding_udf(model_name="all-MiniLM-L6-v2"):
@@ -72,7 +70,7 @@ def process_embeddings(reviews_df):
     """
     Generate embeddings for review_text column
     """
-    print("\n🔄 Generating embeddings...")
+    print("\n Generating embeddings...")
     
     # Get embedding UDF
     embed_udf = create_embedding_udf()
@@ -99,19 +97,19 @@ def process_embeddings(reviews_df):
 
 def save_embeddings(embeddings_df):
     """Save embeddings to Parquet"""
-    print(f"\n💾 Saving embeddings to {EMBEDDINGS_OUTPUT_PATH}...")
+    print(f"\n Saving embeddings to {EMBEDDINGS_OUTPUT_PATH}...")
     
     embeddings_df.write \
         .mode("overwrite") \
         .parquet(EMBEDDINGS_OUTPUT_PATH)
     
-    print(f"✅ Embeddings saved successfully")
-    print(f"📊 Total vectors: {embeddings_df.count()}")
+    print(f" Embeddings saved successfully")
+    print(f" Total vectors: {embeddings_df.count()}")
 
 def main():
     """Main pipeline"""
     print("\n" + "="*60)
-    print("🎯 EMBEDDING LAYER başlıyor...")
+    print(" EMBEDDING LAYER başlıyor...")
     print("="*60)
     
     try:
@@ -127,15 +125,15 @@ def main():
         save_embeddings(embeddings_df)
         
         print("\n" + "="*60)
-        print("✅ 🟢 EMBEDDING LAYER başarıyla tamamlandı!")
+        print(" EMBEDDING LAYER başarıyla tamamlandı!")
         print("="*60)
         
         spark.stop()
         return 0
         
     except Exception as e:
-        print(f"\n❌ ❌ EMBEDDING LAYER hatası: {str(e)}")
-        print(f"📍 Error details: {type(e).__name__}")
+        print(f"\n  EMBEDDING LAYER hatası: {str(e)}")
+        print(f" Error details: {type(e).__name__}")
         import traceback
         traceback.print_exc()
         return 1

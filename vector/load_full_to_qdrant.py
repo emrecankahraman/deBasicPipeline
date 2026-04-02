@@ -1,6 +1,8 @@
 """
-LOAD FULL EMBEDDINGS TO QDRANT
-Loads all 561K embeddings from data/embeddings_full/ to Qdrant vector database
+Load embeddings to Qdrant.
+
+Input location:
+- data/embeddings/part-*.parquet (Spark output)
 """
 
 import pandas as pd
@@ -15,7 +17,7 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-EMBEDDINGS_PATH = Path("data/embeddings_full")
+EMBEDDINGS_PATH = Path("data/embeddings")
 QDRANT_HOST = "localhost"
 QDRANT_PORT = 6333
 COLLECTION_NAME = "reviews"
@@ -45,11 +47,16 @@ except Exception as e:
 
 # Step 2: Find files
 print(f"\n[STEP 2] Finding files...")
-embedding_files = sorted(glob.glob(str(EMBEDDINGS_PATH / "embeddings_part_*.parquet")))
+print(f"  Input path: {EMBEDDINGS_PATH}")
+embedding_files = []
+embedding_files.extend(sorted(glob.glob(str(EMBEDDINGS_PATH / "part-*.parquet"))))
+embedding_files.extend(sorted(glob.glob(str(EMBEDDINGS_PATH / "embeddings_part_*.parquet"))))
+embedding_files = sorted(set(embedding_files))
 print(f"  Found {len(embedding_files)} files")
 
 if not embedding_files:
-    print(f"  ❌ No files!")
+    print(f"  ❌ No embedding files found in {EMBEDDINGS_PATH}")
+    print(f"  [HINT] Run: python scripts/embedding_layer.py")
     exit(1)
 
 # Step 3: Load and upsert
@@ -113,8 +120,7 @@ for file_idx, embedding_file in enumerate(embedding_files, 1):
         # Progress
         elapsed = time.time() - start_time
         rate = total_vectors / elapsed if elapsed > 0 else 0
-        eta = ((561_519 - total_vectors) / rate) if rate > 0 else 0
-        print(f"  Progress: {total_vectors:,}/561,519 | ETA: {eta/60:.0f}m")
+        print(f"  Progress: {total_vectors:,} vectors")
         
     except Exception as e:
         print(f"  ❌ Error: {e}")
@@ -135,7 +141,10 @@ print(f"Total time:          {total_time/60:.1f}m")
 
 if collection_info.points_count > 0:
     print(f"\n✅ ALL EMBEDDINGS LOADED SUCCESSFULLY!")
-    print(f"\n[NEXT] python vector/test_search_full.py")
+    print(f"\n[NEXT STEPS]")
+    print(f"  1. python vector/test_search_full.py")
+    print(f"  2. python api/search_api.py")
+    print(f"  3. Open: http://localhost:8000/docs")
 else:
     print(f"\n⚠️  WARNING: No vectors loaded!")
 

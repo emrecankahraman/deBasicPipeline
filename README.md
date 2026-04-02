@@ -18,9 +18,12 @@ Power BI-ready output tables:
 
 Search components:
 - `scripts/gold_layer.py` (builds `gold/reviews`)
-- `embedding/embedding_full.py` (generates embeddings)
+- `scripts/embedding_layer.py` (generates embeddings to `data/embeddings`)
 - `vector/load_full_to_qdrant.py` (loads vectors into Qdrant)
 - `api/search_api.py` (`/health`, `/search`)
+
+Embedding model used:
+- `sentence-transformers/all-MiniLM-L6-v2` (384 dimensions)
 
 
 

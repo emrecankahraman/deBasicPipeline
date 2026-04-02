@@ -1,128 +1,73 @@
 """
-ORCHESTRATION - BATCH MODE
-Tüm batch streaming job'larını (Bronze, Silver, Gold) sırasıyla çalı    print("\n" + "="*60)
-    if success:
-        print("✅ PIPELINE TAMAMLANDI!")
-        print(f"⏱️  Toplam süre: {elapsed:.1f} saniye")
-        print("\n📊 Output Paths:")
-        print("  📁 data/bronze/ - Ham veri")
-        print("  📁 data/silver/ - Temizlenmiş veri")
-        print("  📁 data/gold/reviews/ - Vector DB için ready")
-        print("  📁 data/gold/products/ - Product aggregations")
-        print("  📁 data/gold/users/ - User aggregations")
-        print("  📁 data/embeddings/ - Review embeddings (384-dim vectors)")
-    else:
-        print("❌ PIPELINE BAŞARISIZ OLDU!")
-    print("="*60 + "\n"):
-1. Bronze Layer'ı çalıştır - CSV → Bronze Parquet (ham veri)
-2. Silver Layer'ı çalıştır - Bronze → Silver Parquet (temizlenmiş veri)
-3. Gold Layer'ı çalıştır - Silver → Gold Parquet (agregasyon)
+Batch pipeline orchestrator.
 
-Çıktı:
-- data/bronze/ - 568K+ satır ham veri
-- data/silver/ - Temizlenmiş, deduplicated veri
-- data/gold/reviews/ - Vector DB input
-- data/gold/products/ - Product aggregations
-- data/gold/users/ - User aggregations
+Run order:
+1) bronze_layer.py
+2) silver_layer.py
+3) gold_layer.py
+4) embedding_layer.py
 """
+
+from __future__ import annotations
+
 import subprocess
 import time
 from pathlib import Path
 
 
-def run_spark_job(job_name, script_path):
-    """
-    Bir Spark batch job'ını çalıştır ve bitişini bekle
-    
-    Args:
-        job_name: Job adı (logging için)
-        script_path: Spark script'in path'i
-        
-    Returns:
-        bool: Başarı durumu
-    """
-    print(f"\n{'='*60}")
-    print(f"▶️  {job_name} çalışıyor...")
-    print(f"{'='*60}")
-    
+def run_spark_job(job_name: str, script_path: Path) -> bool:
+    print("\n" + "=" * 64)
+    print(f"RUNNING: {job_name}")
+    print("=" * 64)
     try:
-        result = subprocess.run(
-            ["spark-submit", str(script_path)],
-            check=True,
-            capture_output=False
-        )
-        print(f"\n✅ {job_name} başarıyla tamamlandı!")
+        subprocess.run(["spark-submit", str(script_path)], check=True)
+        print(f"OK: {job_name}")
         return True
-    except subprocess.CalledProcessError as e:
-        print(f"\n❌ {job_name} hataya uğradı: {e}")
+    except subprocess.CalledProcessError as exc:
+        print(f"ERROR: {job_name} failed ({exc})")
         return False
-    except Exception as e:
-        print(f"\n❌ {job_name} çalıştırılamadı: {e}")
+    except Exception as exc:  # pragma: no cover
+        print(f"ERROR: {job_name} could not start ({exc})")
         return False
 
 
-def main():
-    """Main - Orchestration"""
-    print("\n" + "="*60)
-    print("🚀 AI-READY REVIEW PIPELINE - BATCH ORCHESTRATION")
-    print("="*60)
-    
-    # Script path'leri
-    base_path = Path(__file__).parent
-    bronze_script = base_path / "bronze_layer.py"
-    silver_script = base_path / "silver_layer.py"
-    gold_script = base_path / "gold_layer.py"
-    embedding_script = base_path / "embedding_layer.py"
-    
-    start_time = time.time()
-    
-    # Job'ları sırasıyla çalıştır
-    print("\n📋 Pipeline Sırası:")
-    print("  1️⃣  BRONZE - CSV → Bronze (ham veri)")
-    print("  2️⃣  SILVER - Bronze → Silver (temiz veri)")
-    print("  3️⃣  GOLD - Silver → Gold (agregasyon + vectors)")
-    print("  4️⃣  EMBEDDINGS - Reviews → Vectors (sentence-transformers)")
-    
+def main() -> None:
+    print("\n" + "=" * 64)
+    print("AI-READY REVIEW PIPELINE - ORCHESTRATION")
+    print("=" * 64)
+
+    base = Path(__file__).parent
+    jobs = [
+        ("BRONZE LAYER", base / "bronze_layer.py"),
+        ("SILVER LAYER", base / "silver_layer.py"),
+        ("GOLD LAYER", base / "gold_layer.py"),
+        ("EMBEDDING LAYER", base / "embedding_layer.py"),
+    ]
+
+    start = time.time()
     success = True
-    
-    # Bronze Layer
-    if not run_spark_job("� BRONZE LAYER", bronze_script):
-        success = False
-    
-    time.sleep(2)
-    
-    # Silver Layer
-    if not run_spark_job("🟡 SILVER LAYER", silver_script):
-        success = False
-    
-    time.sleep(2)
-    
-    # Gold Layer
-    if not run_spark_job("🟢 GOLD LAYER", gold_script):
-        success = False
-    
-    time.sleep(2)
-    
-    # Embedding Layer
-    if success:
-        if not run_spark_job("🎨 EMBEDDING LAYER", embedding_script):
+
+    for i, (name, script) in enumerate(jobs, start=1):
+        print(f"\nStep {i}/{len(jobs)}")
+        if not run_spark_job(name, script):
             success = False
-    
-    elapsed = time.time() - start_time
-    
-    print("\n" + "="*60)
+            break
+        time.sleep(1)
+
+    elapsed = time.time() - start
+    print("\n" + "=" * 64)
     if success:
-        print("✅ PIPELINE TAMAMLANDI!")
-        print(f"⏱️  Toplam süre: {elapsed:.1f} saniye")
-        print("\n📊 Output Paths:")
-        print("  📁 data/bronze/ - Ham veri")
-        print("  � data/silver/ - Temizlenmiş veri")
-        print("  📁 data/gold/reviews/ - Vector DB için ready")
-        print("  📁 data/gold/products/ - Product aggregations")
-        print("  📁 data/gold/users/ - User aggregations")
+        print("PIPELINE COMPLETED")
+        print(f"Total time: {elapsed:.1f}s")
+        print("Outputs:")
+        print("- data/bronze")
+        print("- data/silver")
+        print("- data/gold/reviews")
+        print("- data/gold/analytics/*")
+        print("- data/embeddings")
     else:
-        print("❌ PIPELINE BAŞARISIZ OLDU!")
-    print("="*60 + "\n")
+        print("PIPELINE FAILED")
+    print("=" * 64 + "\n")
 
 
 if __name__ == "__main__":
