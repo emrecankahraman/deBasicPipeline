@@ -29,32 +29,11 @@ Embedding model used:
 
 Qdrant collection status:
 
-![Qdrant collection overview](docs/images/qdrant-collections.png)
+![Qdrant collection overview](docs/qdrant-collections.png)
 
 Semantic search API example (`POST /search`):
 
-![Semantic search response example](docs/images/search-api-demo.png)
-
-Example request:
-
-```json
-{
-  "query": "good coffee",
-  "limit": 5,
-  "with_payload": true
-}
-```
-
-Example response fields:
-- `vector_id`
-- `score`
-- `product_id`
-- `user_id`
-- `rating`
-- `summary`
-- `review_text`
-
-With the current dataset, the `reviews` collection contains approximately `561,519` vectors and supports semantic retrieval with low-latency responses.
+![Semantic search response example](docs/search-api-demo.png)
 
 
 No additional database is required for Power BI in the MVP.  

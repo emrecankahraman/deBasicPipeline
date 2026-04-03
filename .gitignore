@@ -9,6 +9,8 @@ env/
 .venv/
 venv/
 
+
+
 # Data folders (large, generated)
 data/
 embedding/
