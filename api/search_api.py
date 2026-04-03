@@ -52,10 +52,14 @@ def on_startup() -> None:
         api_key=QDRANT_API_KEY,
     )
 
-    # Fail fast if collection is missing/unreachable.
-    qdrant_client.get_collection(QDRANT_COLLECTION)
+    # Collection erişilebilir mi kontrol et
+    collection_info = qdrant_client.get_collection(QDRANT_COLLECTION)
+    print(f"[STARTUP] Connected to Qdrant: {QDRANT_HOST}:{QDRANT_PORT}")
+    print(f"[STARTUP] Collection: {QDRANT_COLLECTION}")
+    print(f"[STARTUP] Points count: {collection_info.points_count}")
 
     model = SentenceTransformer(MODEL_NAME, device=DEVICE)
+    print(f"[STARTUP] Model loaded: {MODEL_NAME} on {DEVICE}")
 
 
 @app.get("/health")
@@ -70,8 +74,9 @@ def health() -> Dict[str, Any]:
         "points_count": info.points_count,
         "model": MODEL_NAME,
         "device": DEVICE,
+        "qdrant_host": QDRANT_HOST,
+        "qdrant_port": QDRANT_PORT,
     }
-
 
 @app.post("/search")
 def search_reviews(request: SearchRequest) -> Dict[str, Any]:
@@ -87,36 +92,88 @@ def search_reviews(request: SearchRequest) -> Dict[str, Any]:
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Embedding failed: {exc}") from exc
 
+    try:
+        collection_info = qdrant_client.get_collection(QDRANT_COLLECTION)
+        count_result = qdrant_client.count(collection_name=QDRANT_COLLECTION)
+        print("\n=== SEARCH DEBUG START ===")
+        print(f"Query: {query_text}")
+        print(f"Collection: {QDRANT_COLLECTION}")
+        print(f"Points count (collection info): {collection_info.points_count}")
+        print(f"Points count (count api): {count_result.count}")
+    except Exception as exc:
+        print(f"[DEBUG] Collection info alınamadı: {exc}")
+
     start_time = time.time()
     try:
+        # limit'i biraz yüksek çekiyoruz ki filtre sonrası elimizde yeterli sonuç kalsın
+        fetch_limit = max(request.limit * 5, 20)
+
         response = qdrant_client.query_points(
             collection_name=QDRANT_COLLECTION,
             query=query_embedding,
-            limit=request.limit,
+            limit=fetch_limit,
             with_payload=request.with_payload,
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Qdrant query failed: {exc}") from exc
     elapsed_ms = (time.time() - start_time) * 1000
 
+    raw_points = response.points if response and response.points else []
+    print(f"Raw hit sayısı: {len(raw_points)}")
+
     results = []
-    for item in response.points:
-        score = float(item.score)
+    seen_texts = set()
+
+    for point in raw_points:
+        score = float(point.score)
+        payload = point.payload or {}
+
+        print("----- RAW POINT -----")
+        print(f"id: {point.id}")
+        print(f"score: {score}")
+        print(f"payload keys: {list(payload.keys())}")
+
         if request.min_score is not None and score < request.min_score:
+            print(f"skip edildi, score düşük: {score} < {request.min_score}")
             continue
 
-        payload = item.payload or {}
+        review_text = (payload.get("review_text") or "").strip()
+        summary = (payload.get("summary") or "").strip()
+
+        # 1) Çok kısa / anlamsız review'leri ele
+        if len(review_text) < 15:
+            print(f"skip edildi, review_text çok kısa: {review_text!r}")
+            continue
+
+        if len(review_text.split()) < 3:
+            print(f"skip edildi, review_text kelime sayısı az: {review_text!r}")
+            continue
+
+        # 2) Aynı review_text tekrar tekrar gelmesin
+        normalized_text = " ".join(review_text.lower().split())
+        if normalized_text in seen_texts:
+            print(f"skip edildi, duplicate review_text: {review_text!r}")
+            continue
+        seen_texts.add(normalized_text)
+
         results.append(
             {
-                "vector_id": payload.get("review_id", item.id),
+                "vector_id": payload.get("review_id", point.id),
                 "score": score,
                 "product_id": payload.get("product_id"),
                 "user_id": payload.get("user_id"),
                 "rating": payload.get("rating"),
-                "summary": payload.get("summary"),
-                "review_text": payload.get("review_text"),
+                "summary": summary,
+                "review_text": review_text,
             }
         )
+
+        # 3) Kullanıcının istediği limite ulaştıysak dur
+        if len(results) >= request.limit:
+            break
+
+    print(f"Final result sayısı: {len(results)}")
+    print("=== SEARCH DEBUG END ===\n")
 
     return {
         "query": query_text,
@@ -124,8 +181,6 @@ def search_reviews(request: SearchRequest) -> Dict[str, Any]:
         "latency_ms": round(elapsed_ms, 2),
         "results": results,
     }
-
-
 if __name__ == "__main__":
     import uvicorn
 
