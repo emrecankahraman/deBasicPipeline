@@ -4,139 +4,118 @@ Converts review_text to vector embeddings using sentence-transformers
 Outputs to data/embeddings/ in Parquet format
 """
 
+import glob
 import os
 import sys
+import warnings
 from pathlib import Path
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, pandas_udf
+
 import pandas as pd
 from sentence_transformers import SentenceTransformer
-import warnings
 
 warnings.filterwarnings("ignore")
 
 # Configure paths
-BASE_PATH = str(Path(__file__).parent.parent)
-GOLD_REVIEWS_PATH = f"{BASE_PATH}/data/gold/reviews"
-EMBEDDINGS_OUTPUT_PATH = f"{BASE_PATH}/data/embeddings"
+BASE_PATH = Path(__file__).parent.parent
+GOLD_REVIEWS_PATH = BASE_PATH / "data" / "gold" / "reviews"
+EMBEDDINGS_OUTPUT_PATH = BASE_PATH / "data" / "embeddings"
 
 # Create output directory
 os.makedirs(EMBEDDINGS_OUTPUT_PATH, exist_ok=True)
 
-def create_spark_session():
-    """Create Spark session"""
-    return SparkSession.builder \
-        .appName("EmbeddingLayer") \
-        .config("spark.driver.memory", "8g") \
-        .config("spark.sql.shuffle.partitions", "200") \
-        .getOrCreate()
 
 def load_reviews():
-    """Load reviews from gold layer"""
-    spark = SparkSession.getActiveSession()
+    """Load reviews from gold layer parquet output."""
     print(f" Loading reviews from {GOLD_REVIEWS_PATH}...")
-    
-    reviews_df = spark.read.parquet(GOLD_REVIEWS_PATH)
 
+    parquet_files = sorted(glob.glob(str(GOLD_REVIEWS_PATH / "*.parquet")))
+    if not parquet_files:
+        parquet_files = sorted(glob.glob(str(GOLD_REVIEWS_PATH / "part-*.parquet")))
+
+    if not parquet_files:
+        raise FileNotFoundError(f"No parquet files found under {GOLD_REVIEWS_PATH}")
+
+    dataframes = [pd.read_parquet(file_path) for file_path in parquet_files]
+    reviews_df = pd.concat(dataframes, ignore_index=True)
+    print(f" Loaded {len(reviews_df):,} reviews")
     return reviews_df
 
-def create_embedding_udf(model_name="all-MiniLM-L6-v2"):
-    """
-    Create Pandas UDF for embedding generation
-    Model: all-MiniLM-L6-v2 (384 dimensions, fast, good quality)
-    """
-    
-    # Load model once
-    model = SentenceTransformer(model_name)
-    
-    @pandas_udf("array<float>")
-    def embed_text(texts: pd.Series) -> pd.Series:
-        """
-        Embed texts using sentence-transformers
-        Returns array of floats (embeddings)
-        """
-        # Handle null values
-        texts = texts.fillna("")
-        
-        # Generate embeddings
-        embeddings = model.encode(texts.tolist(), show_progress_bar=False)
-        
-        # Convert to list of lists
-        return pd.Series([embedding.tolist() for embedding in embeddings])
-    
-    return embed_text
 
-def process_embeddings(reviews_df):
-    """
-    Generate embeddings for review_text column
-    """
+def create_model(model_name="all-MiniLM-L6-v2"):
+    """Load embedding model once."""
+    print(f" Loading model: {model_name}...")
+    return SentenceTransformer(model_name)
+
+
+def process_embeddings(reviews_df, model, batch_size=128):
+    """Generate embeddings for review_text column."""
     print("\n Generating embeddings...")
-    
-    # Get embedding UDF
-    embed_udf = create_embedding_udf()
-    
-    # Generate embeddings
-    embeddings_df = reviews_df.withColumn(
-        "embedding",
-        embed_udf(col("review_text"))
+
+    working_df = reviews_df.copy()
+    texts = working_df["review_text"].fillna("").astype(str).tolist()
+
+    embeddings = model.encode(
+        texts,
+        batch_size=batch_size,
+        show_progress_bar=True,
+        convert_to_numpy=True,
     )
-    
-    # Keep only necessary columns
-    embeddings_df = embeddings_df.select(
-        "review_id",
-        "product_id", 
-        "user_id",
-        "summary",
-        "review_text",
-        "rating",
-        "helpfulness_ratio",
-        "embedding"
-    )
-    
+
+    working_df["embedding"] = [embedding.tolist() for embedding in embeddings]
+
+    embeddings_df = working_df[
+        [
+            "review_id",
+            "product_id",
+            "user_id",
+            "summary",
+            "review_text",
+            "rating",
+            "helpfulness_ratio",
+            "embedding",
+        ]
+    ].copy()
+
     return embeddings_df
 
+
 def save_embeddings(embeddings_df):
-    """Save embeddings to Parquet"""
+    """Save embeddings to Parquet."""
     print(f"\n Saving embeddings to {EMBEDDINGS_OUTPUT_PATH}...")
-    
-    embeddings_df.write \
-        .mode("overwrite") \
-        .parquet(EMBEDDINGS_OUTPUT_PATH)
-    
-    print(f" Embeddings saved successfully")
-    print(f" Total vectors: {embeddings_df.count()}")
+
+    output_file = EMBEDDINGS_OUTPUT_PATH / "part-00000.parquet"
+    embeddings_df.to_parquet(output_file, index=False)
+
+    print(" Embeddings saved successfully")
+    print(f" Output file: {output_file}")
+    print(f" Total vectors: {len(embeddings_df):,}")
+
 
 def main():
-    """Main pipeline"""
-    print("\n" + "="*60)
+    """Main pipeline."""
+    print("\n" + "=" * 60)
     print(" EMBEDDING LAYER başlıyor...")
-    print("="*60)
-    
+    print("=" * 60)
+
     try:
-        spark = create_spark_session()
-        
-        # Load reviews
         reviews_df = load_reviews()
-        
-        # Generate embeddings
-        embeddings_df = process_embeddings(reviews_df)
-        
-        # Save embeddings
+        model = create_model()
+        embeddings_df = process_embeddings(reviews_df, model)
         save_embeddings(embeddings_df)
-        
-        print("\n" + "="*60)
+
+        print("\n" + "=" * 60)
         print(" EMBEDDING LAYER başarıyla tamamlandı!")
-        print("="*60)
-        
-        spark.stop()
+        print("=" * 60)
         return 0
-        
+
     except Exception as e:
         print(f"\n  EMBEDDING LAYER hatası: {str(e)}")
         print(f" Error details: {type(e).__name__}")
         import traceback
+
         traceback.print_exc()
         return 1
+
 
 if __name__ == "__main__":
     exit_code = main()

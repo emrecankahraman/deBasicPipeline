@@ -151,7 +151,6 @@ def main():
     
     # Bronze'dan oku
     bronze_df = read_bronze_batch(spark)
-    print(f"\n Bronze'dan {bronze_df.count()} satır okundu")
     
     # Önce schema'yı kontrol et
     print("\n=== BRONZE SCHEMA ===")
@@ -190,7 +189,6 @@ def main():
     bronze_df = bronze_df.withColumn("Score", col("Score").cast("int"))
     bronze_df = bronze_df.withColumn("Time", col("Time").cast("long"))
     
-    print(f" Valid satırlar: {bronze_df.count()}")
     
     # Silver işleme
     silver_df = process_silver_layer(bronze_df)
@@ -199,7 +197,6 @@ def main():
     print("\n=== SILVER SCHEMA ===")
     silver_df.printSchema()
     
-    print(f"\n {silver_df.count()} satır silver katmanına yazılıyor...")
     write_silver_batch(silver_df)
     
     print("Silver layer tamamlandı!")

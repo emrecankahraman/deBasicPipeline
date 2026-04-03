@@ -95,7 +95,6 @@ def main():
     
     # CSV'den oku
     csv_df = read_csv_data(spark)
-    print(f"\n CSV'den {csv_df.count()} satır okundu")
     
     # Bronze işleme
     bronze_df = process_bronze_layer(csv_df)
@@ -104,7 +103,6 @@ def main():
     print("\n=== BRONZE SCHEMA ===")
     bronze_df.printSchema()
     
-    print(f"\n {bronze_df.count()} satır bronze katmanına yazılıyor...")
     write_bronze_batch(bronze_df)
     
     print("Bronze layer tamamlandı!")
